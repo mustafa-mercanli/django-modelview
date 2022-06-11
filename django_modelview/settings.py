@@ -78,7 +78,7 @@ DATABASES = {
     }
 }
 
-DATABASE_ROUTERS=["django_modelview.middleware.DBRouter"]
+DATABASE_ROUTERS=["django_modelview.multidb_middleware.DBRouter"]
 
 
 # Password validation

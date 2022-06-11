@@ -1,13 +1,16 @@
 from django.http import JsonResponse
 from django.views.generic import View
+from django.db.models import Q
 import json
+
 
 class DjangoModelView(View):
     qset = None
     fetch_limit = 1000000
 
     def fixer(self,val):
-        mapping = {"true":True,"True":True,"false":False,"False":False,"null":None,"Null":None}
+        mapping = {"true":True,"True":True,"false":False,"False":False,
+                    "null":None,"Null":None,"none":None,"None":None}
         return mapping.get(val,val)
 
     def get(self,request,*args,**kwargs):
@@ -27,10 +30,22 @@ class DjangoModelView(View):
         order = querystring.pop('order',None)
         order = order.split(",") if order else []
 
-        self.qset = self.qset.filter(**querystring).values(*fields)
+        and_queries = Q()
+        or_queries = Q()
+
+        for key in querystring:
+            key = key
+            val = querystring[key]
+            for part in val.split("|"):
+                if "=" in part:
+                    or_key,or_val = part.split("=")
+                    or_queries |= Q(**{or_key.strip():or_val.strip()})
+                else:
+                    and_queries &= Q(**{key.strip():part.strip()})
+        self.qset = self.qset.filter(and_queries,or_queries)
 
         if kwargs.get("pk"):
-            for row in self.qset.filter(pk=kwargs.get("pk")):
+            for row in self.qset.filter(pk=kwargs.get("pk")).values(*fields):
                 resp = row
                 break
             else:
@@ -38,7 +53,7 @@ class DjangoModelView(View):
             
         else:
             total_records = self.qset.count()
-            data = list(self.qset.order_by(*order)[offset:offset+limit])
+            data = list(self.qset.order_by(*order).values(*fields)[offset:offset+limit])
 
             resp = {"total_records":total_records,"offset":offset,"limit":limit,"data":data}
 
